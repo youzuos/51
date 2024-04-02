@@ -1,0 +1,341 @@
+C51 COMPILER V9.56.0.0   MAIN                                                              04/02/2024 12:52:05 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main
+                    -.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include "reg52.h"
+   2          #include "intrins.h"
+   3          #include "onewire.h"
+   4          #include "iic.h"
+   5          #include "ds1302.h"
+   6          
+   7          unsigned char code t_display[]={                       //±ê×¼×Ö¿â
+   8          //   0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F
+   9              0x3F,0x06,0x5B,0x4F,0x66,0x6D,0x7D,0x07,0x7F,0x6F,0x77,0x7C,0x39,0x5E,0x79,0x71,
+  10          //black  -     H    J    K    L    N    o   P    U     t    G    Q    r   M    y
+  11              0x00,0x40,0x76,0x1E,0x70,0x38,0x37,0x5C,0x73,0x3E,0x78,0x3d,0x67,0x50,0x37,0x6e};
+  12          unsigned char code t_display_dot[]={0xBF,0x86,0xDB,0xCF,0xE6,0xED,0xFD,0x87,0xFF,0xEF,0x46};    //0. 1. 2.
+             - 3. 4. 5. 6. 7. 8. 9. -1
+  13          
+  14          sbit S1=P3^0;
+  15          sbit S2=P3^1;
+  16          
+  17          
+  18          unsigned char Read_addr[]={0x81,0x83,0x85,0x87,0x89,0x8b,0x8d,0x8f,0x91};
+  19          unsigned char Write_addr[]={0x80,0x82,0x84,0x86,0x88,0x8a,0x8c,0x8e,0x90};
+  20          unsigned char Timer[]={0x55,0x59,0x23,0x02,0x04,0x03,0x24}; 
+  21          unsigned char Timer_count=0;
+  22          unsigned char mode=1;
+  23          unsigned int temp;
+  24          unsigned char light;
+  25          
+  26          
+  27          
+  28          void _Light();
+  29          void SMG_1();
+  30          void SMG_bit(unsigned char pos,unsigned char num);
+  31          void Delay1ms();
+  32          void SelectHC138(unsigned char channel,unsigned char dat);
+  33          void InitSys();
+  34          void DS1302_Read();
+  35          void DS1302_Write();
+  36          void DS1302();
+  37          void InitTimer0();
+  38          void ds18b20();
+  39          void SMG_2();
+  40          void ScanKey();
+  41          void Delay(unsigned char t);
+  42          void SMG_3();
+  43          
+  44          
+  45          void main()
+  46          {
+  47   1        InitSys();
+  48   1        DS1302_Write();
+  49   1        InitTimer0();
+  50   1        
+  51   1        while(1)
+  52   1        {
+  53   2          ScanKey();
+C51 COMPILER V9.56.0.0   MAIN                                                              04/02/2024 12:52:05 PAGE 2   
+
+  54   2          
+  55   2          
+  56   2          switch(mode)
+  57   2          {
+  58   3            case 1:
+  59   3              DS1302();
+  60   3            break;
+  61   3            case 2:
+  62   3              SMG_2();
+  63   3              ds18b20();
+  64   3            break;
+  65   3            case 3:
+  66   3              SMG_3();
+  67   3              _Light();
+  68   3            break;
+  69   3          }
+  70   2        }
+  71   1      }
+  72          
+  73          
+  74          
+  75          
+  76          
+  77          void SelectHC138(unsigned char channel,unsigned char dat)
+  78          {
+  79   1        P0=dat;
+  80   1        switch(channel)
+  81   1        {
+  82   2          case 0:
+  83   2            P2=P2&0x1f|0x00;
+  84   2          break;
+  85   2          case 4:
+  86   2            P2=P2&0x1f|0x80;
+  87   2          break;
+  88   2          case 5:
+  89   2            P2=P2&0x1f|0xa0;
+  90   2          break;
+  91   2          case 6:
+  92   2            P2=P2&0x1f|0xc0;
+  93   2          break;
+  94   2          case 7:
+  95   2            P2=P2&0x1f|0xe0;
+  96   2          break;
+  97   2        }
+  98   1        P2=P2&0x1f|0x00;
+  99   1      }
+ 100          
+ 101          void InitSys()
+ 102          {
+ 103   1        SelectHC138(4,0xff);
+ 104   1        SelectHC138(5,0x00);
+ 105   1        SelectHC138(6,0xff);
+ 106   1        SelectHC138(7,0xff);
+ 107   1        SelectHC138(0,0);
+ 108   1      }
+ 109          
+ 110          void SMG_bit(unsigned char pos,unsigned char num)
+ 111          {
+ 112   1        SelectHC138(6,0x01<<pos);
+ 113   1        SelectHC138(7,num);
+ 114   1        Delay1ms();
+ 115   1        SelectHC138(7,0xff);
+C51 COMPILER V9.56.0.0   MAIN                                                              04/02/2024 12:52:05 PAGE 3   
+
+ 116   1      }
+ 117          
+ 118          void Delay1ms()   //@11.0592MHz
+ 119          {
+ 120   1        unsigned char i, j;
+ 121   1      
+ 122   1        _nop_();
+ 123   1        _nop_();
+ 124   1        _nop_();
+ 125   1        i = 11;
+ 126   1        j = 190;
+ 127   1        do
+ 128   1        {
+ 129   2          while (--j);
+ 130   2        } while (--i);
+ 131   1      }
+ 132          
+ 133          void SMG_1()
+ 134          {
+ 135   1        SMG_bit(7,~t_display[Timer[0]%16]);
+ 136   1        SMG_bit(6,~t_display[Timer[0]/16]);
+ 137   1        SMG_bit(5,~0x40);
+ 138   1        SMG_bit(4,~t_display[Timer[1]%16]);
+ 139   1        SMG_bit(3,~t_display[Timer[1]/16]);
+ 140   1        SMG_bit(2,~0x40);
+ 141   1        SMG_bit(1,~t_display[1]);
+ 142   1        SMG_bit(0,~0x40);
+ 143   1      }
+ 144          
+ 145          void DS1302_Write()
+ 146          {
+ 147   1        unsigned char i;
+ 148   1        Write_Ds1302_Byte(0x8e,0x00);
+ 149   1        for (i=0;i<3;i++)
+ 150   1        {
+ 151   2          Write_Ds1302_Byte(Write_addr[i],Timer[i]);
+ 152   2        }
+ 153   1        Write_Ds1302_Byte(0x8e,0x80);
+ 154   1      }
+ 155          
+ 156          void DS1302_Read()
+ 157          {
+ 158   1        unsigned char i;
+ 159   1        for (i=0;i<3;i++)
+ 160   1        {
+ 161   2          Timer[i]=Read_Ds1302_Byte (Read_addr[i]);
+ 162   2        }
+ 163   1      }
+ 164          
+ 165          void DS1302()
+ 166          {
+ 167   1        DS1302_Read();
+ 168   1        if(Timer[0]==0x00)
+ 169   1        {
+ 170   2          TR0=1;
+ 171   2          SelectHC138(5,0x10);
+ 172   2          
+ 173   2        }
+ 174   1        SMG_1();
+ 175   1      }
+ 176          
+ 177          void InitTimer0()
+C51 COMPILER V9.56.0.0   MAIN                                                              04/02/2024 12:52:05 PAGE 4   
+
+ 178          {
+ 179   1        EA=1;
+ 180   1        ET0=1;
+ 181   1        TMOD=0x01;
+ 182   1        TR0=0;
+ 183   1        TH0=(65535-50000)/256;
+ 184   1        TL0=(65535-50000)%256;
+ 185   1      }
+ 186          
+ 187          void Timer0() interrupt 1
+ 188          {
+ 189   1        TH0=(65535-50000)/256;
+ 190   1        TL0=(65535-50000)%256;
+ 191   1        Timer_count++;
+ 192   1        if(Timer_count==40)
+ 193   1        {
+ 194   2            SelectHC138(5,0x00);
+ 195   2            Timer_count=0;
+ 196   2            TR0=0;
+ 197   2        }
+ 198   1      }
+ 199          
+ 200          void ds18b20()
+ 201          {
+ 202   1        unsigned char MSB,LSB;
+ 203   1        init_ds18b20();
+ 204   1        Write_DS18B20(0xcc);
+ 205   1        Write_DS18B20(0x44);
+ 206   1        Delay(500);
+ 207   1        
+ 208   1        init_ds18b20();
+ 209   1        Write_DS18B20(0xcc);
+ 210   1        Write_DS18B20(0xbe);
+ 211   1        LSB=Read_DS18B20();
+ 212   1        MSB=Read_DS18B20();
+ 213   1        
+ 214   1        temp=MSB;
+ 215   1        temp=temp<<8;
+ 216   1        temp=temp|LSB;
+ 217   1        temp=temp>>4;
+ 218   1        temp=temp*100;
+ 219   1        LSB=LSB*625;
+ 220   1        temp=temp+LSB;
+ 221   1      }
+ 222          
+ 223          void Delay(unsigned char t)
+ 224          {
+ 225   1        while(t--)
+ 226   1        {
+ 227   2          if(mode==2)
+ 228   2            SMG_2();
+ 229   2          else if(mode==1)
+ 230   2            SMG_1();
+ 231   2          else
+ 232   2            SMG_3();
+ 233   2        }
+ 234   1      }
+ 235          
+ 236          void SMG_2()
+ 237          {
+ 238   1        SMG_bit(7,~t_display[temp%10]);
+ 239   1        SMG_bit(6,~t_display[temp%100/10]);
+C51 COMPILER V9.56.0.0   MAIN                                                              04/02/2024 12:52:05 PAGE 5   
+
+ 240   1        SMG_bit(5,~t_display_dot[temp%1000/100]);
+ 241   1        SMG_bit(4,~t_display[temp/1000]);
+ 242   1        SMG_bit(2,~0x40);
+ 243   1        SMG_bit(1,~t_display[2]);
+ 244   1        SMG_bit(0,~0x40);
+ 245   1      }
+ 246          
+ 247          void ScanKey()
+ 248          {
+ 249   1        if(S1==0)
+ 250   1        {
+ 251   2          Delay(20);
+ 252   2          if(S1==0)
+ 253   2          {
+ 254   3            while(S1==0)
+ 255   3            {
+ 256   4              if(mode==2)
+ 257   4                SMG_2();
+ 258   4              else if(mode==1)
+ 259   4                SMG_1();
+ 260   4              else
+ 261   4                SMG_3();
+ 262   4            }
+ 263   3            if(mode==3)
+ 264   3              mode=1;
+ 265   3            else
+ 266   3              mode++;
+ 267   3          }
+ 268   2          
+ 269   2        }
+ 270   1        if(S2==0)
+ 271   1        {
+ 272   2          Delay(20);
+ 273   2          if(S2==0)
+ 274   2          {
+ 275   3            while(S2==0)
+ 276   3            {
+ 277   4              if(mode==2)
+ 278   4                SMG_2();
+ 279   4              else if(mode==1)
+ 280   4                SMG_1();
+ 281   4              else
+ 282   4                SMG_3();
+ 283   4            }
+ 284   3            if(mode==1)
+ 285   3              mode=3;
+ 286   3            else
+ 287   3              mode--;
+ 288   3          }
+ 289   2        }
+ 290   1      }
+ 291          
+ 292          void SMG_3()
+ 293          {
+ 294   1        SMG_bit(7,~t_display[light%10]);
+ 295   1        SMG_bit(6,~t_display[light%100/10]);
+ 296   1        SMG_bit(5,~t_display[light/100]);
+ 297   1        SMG_bit(2,~0x40);
+ 298   1        SMG_bit(1,~t_display[3]);
+ 299   1        SMG_bit(0,~0x40);
+ 300   1      }
+ 301          
+C51 COMPILER V9.56.0.0   MAIN                                                              04/02/2024 12:52:05 PAGE 6   
+
+ 302          void _Light()
+ 303          {
+ 304   1        light=read_light();
+ 305   1        //light=light/5*255;
+ 306   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    933    ----
+   CONSTANT SIZE    =     43    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     30       4
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
